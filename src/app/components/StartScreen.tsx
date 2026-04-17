@@ -1,7 +1,8 @@
-import { Droplets } from 'lucide-react';
+import { Droplets, Zap, Target, Flame } from 'lucide-react';
+import { Difficulty } from '../App';
 
 interface StartScreenProps {
-  onStart: () => void;
+  onStart: (difficulty: Difficulty) => void;
 }
 
 export function StartScreen({ onStart }: StartScreenProps) {
@@ -36,13 +37,50 @@ export function StartScreen({ onStart }: StartScreenProps) {
           </p>
         </div>
 
-        {/* Start Button */}
-        <button
-          onClick={onStart}
-          className="bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold text-lg px-8 py-4 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
-        >
-          Start Game
-        </button>
+        {/* Difficulty Selection */}
+        <div className="space-y-4 pt-4">
+          <p className="text-lg font-semibold text-[#333333]">Select Difficulty</p>
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              onClick={() => onStart('easy')}
+              className="bg-white hover:bg-gray-50 text-[#333333] font-bold px-6 py-4 rounded-2xl transition-all shadow-md hover:shadow-lg active:scale-95 border-2 border-[#2E9DF7]/20 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <Zap className="w-6 h-6 text-[#2E9DF7]" />
+                <div className="text-left">
+                  <div className="font-bold">Easy</div>
+                  <div className="text-sm font-normal text-[#333333]/70">40 moves • 180 seconds</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => onStart('normal')}
+              className="bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold px-6 py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl active:scale-95 border-2 border-[#FFC907] flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <Target className="w-6 h-6 text-[#333333]" />
+                <div className="text-left">
+                  <div className="font-bold">Normal</div>
+                  <div className="text-sm font-normal text-[#333333]/80">25 moves • 120 seconds</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => onStart('hard')}
+              className="bg-white hover:bg-gray-50 text-[#333333] font-bold px-6 py-4 rounded-2xl transition-all shadow-md hover:shadow-lg active:scale-95 border-2 border-red-500/30 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <Flame className="w-6 h-6 text-red-500" />
+                <div className="text-left">
+                  <div className="font-bold">Hard</div>
+                  <div className="text-sm font-normal text-[#333333]/70">15 moves • 60 seconds</div>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
 
         {/* Stat */}
         <p className="text-sm text-[#333333]/60 italic mt-8">

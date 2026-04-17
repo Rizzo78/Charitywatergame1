@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Droplets, Home, RotateCcw } from 'lucide-react';
+import { Droplets, Home, RotateCcw, Menu, Clock, MousePointerClick } from 'lucide-react';
+import { Difficulty } from '../App';
 
 type CellType = 'empty' | 'dirt' | 'rock' | 'water-source' | 'village' | 'water';
 
@@ -8,21 +9,72 @@ interface Cell {
   removable: boolean;
 }
 
-type GameState = 'playing' | 'won' | 'lost';
+type GameState = 'playing' | 'won' | 'lost' | 'timeout' | 'out-of-moves';
 
 const GRID_SIZE = 10;
 
-export function GameBoard() {
+interface DifficultyConfig {
+  maxMoves: number;
+  timeLimit: number;
+  dirtDensity: number;
+  pointsPerWin: number;
+}
+
+const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
+  easy: {
+    maxMoves: 40,
+    timeLimit: 180,
+    dirtDensity: 0.3,
+    pointsPerWin: 3,
+  },
+  normal: {
+    maxMoves: 25,
+    timeLimit: 120,
+    dirtDensity: 0.4,
+    pointsPerWin: 5,
+  },
+  hard: {
+    maxMoves: 15,
+    timeLimit: 60,
+    dirtDensity: 0.5,
+    pointsPerWin: 10,
+  },
+};
+
+interface GameBoardProps {
+  difficulty: Difficulty;
+  onBackToMenu: () => void;
+}
+
+export function GameBoard({ difficulty, onBackToMenu }: GameBoardProps) {
   const [grid, setGrid] = useState<Cell[][]>([]);
   const [gameState, setGameState] = useState<GameState>('playing');
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
+  const [movesRemaining, setMovesRemaining] = useState(DIFFICULTY_CONFIGS[difficulty].maxMoves);
+  const [timeRemaining, setTimeRemaining] = useState(DIFFICULTY_CONFIGS[difficulty].timeLimit);
 
   useEffect(() => {
     initializeGame();
-  }, [level]);
+  }, [level, difficulty]);
+
+  useEffect(() => {
+    if (gameState === 'playing' && timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            setGameState('timeout');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [gameState, timeRemaining]);
 
   const initializeGame = () => {
+    const config = DIFFICULTY_CONFIGS[difficulty];
     const newGrid: Cell[][] = [];
 
     for (let row = 0; row < GRID_SIZE; row++) {
@@ -35,11 +87,11 @@ export function GameBoard() {
           // Village at bottom center
           newGrid[row][col] = { type: 'village', removable: false };
         } else {
-          // Randomly place dirt and rocks
+          // Randomly place dirt and rocks based on difficulty
           const rand = Math.random();
-          if (rand < 0.4) {
+          if (rand < config.dirtDensity) {
             newGrid[row][col] = { type: 'dirt', removable: true };
-          } else if (rand < 0.5) {
+          } else if (rand < config.dirtDensity + 0.1) {
             newGrid[row][col] = { type: 'rock', removable: false };
           } else {
             newGrid[row][col] = { type: 'empty', removable: false };
@@ -50,11 +102,13 @@ export function GameBoard() {
 
     setGrid(newGrid);
     setGameState('playing');
+    setMovesRemaining(config.maxMoves);
+    setTimeRemaining(config.timeLimit);
   };
 
   const handleCellClick = (row: number, col: number) => {
-    if (gameState !== 'playing') return;
-    
+    if (gameState !== 'playing' || movesRemaining <= 0) return;
+
     const cell = grid[row][col];
     if (cell.removable && cell.type === 'dirt') {
       const newGrid = grid.map((r, rIdx) =>
@@ -66,6 +120,13 @@ export function GameBoard() {
         })
       );
       setGrid(newGrid);
+      setMovesRemaining((prev) => {
+        const newMoves = prev - 1;
+        if (newMoves <= 0) {
+          setGameState('out-of-moves');
+        }
+        return newMoves;
+      });
     }
   };
 
@@ -127,7 +188,8 @@ export function GameBoard() {
       // Animate water flow
       animateWaterFlow();
       setGameState('won');
-      setScore(score + 5);
+      const config = DIFFICULTY_CONFIGS[difficulty];
+      setScore(score + config.pointsPerWin);
     } else {
       setGameState('lost');
     }
@@ -229,26 +291,54 @@ export function GameBoard() {
     return null;
   };
 
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-6 shadow-sm">
+      <header className="bg-white border-b border-gray-200 min-h-20 flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 shadow-sm gap-3">
         <div className="flex items-center gap-2">
+          <button
+            onClick={onBackToMenu}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-all active:scale-95"
+            aria-label="Back to menu"
+          >
+            <Menu className="w-5 h-5 text-[#333333]" />
+          </button>
           <Droplets className="w-6 h-6 text-[#2E9DF7]" />
           <span className="font-semibold text-[#333333]">charity: water</span>
         </div>
-        <div className="flex items-center gap-2 text-[#333333] font-bold">
-          <span>Score: {score}</span>
-          <Droplets className="w-5 h-5 text-[#2E9DF7]" />
+        <div className="flex items-center gap-4 text-[#333333]">
+          <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-2 rounded-lg">
+            <Clock className="w-4 h-4 text-[#2E9DF7]" />
+            <span className={`font-bold tabular-nums ${timeRemaining <= 20 ? 'text-red-500' : ''}`}>
+              {formatTime(timeRemaining)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-2 rounded-lg">
+            <MousePointerClick className="w-4 h-4 text-[#2E9DF7]" />
+            <span className={`font-bold ${movesRemaining <= 5 ? 'text-red-500' : ''}`}>
+              {movesRemaining}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-[#FFC907] px-3 py-2 rounded-lg">
+            <span className="font-bold">{score}</span>
+            <Droplets className="w-4 h-4 text-[#333333]" />
+          </div>
         </div>
       </header>
 
       {/* Main Game Area */}
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-[650px] bg-[#EAF6FF] rounded-2xl shadow-xl p-8 space-y-6">
-          {/* Level Indicator */}
-          <div className="text-center">
+          {/* Level and Difficulty Indicator */}
+          <div className="text-center space-y-1">
             <p className="text-lg font-bold text-[#333333]">Level {level}</p>
+            <p className="text-sm text-[#333333]/70 capitalize">{difficulty} Mode</p>
           </div>
 
           {/* Game Grid */}
@@ -318,24 +408,82 @@ export function GameBoard() {
                   Water Reached the Village!
                 </h2>
                 <p className="text-lg text-[#333333]">
-                  You helped provide clean water to <strong>5 people</strong> today{' '}
+                  You helped provide clean water to <strong>{DIFFICULTY_CONFIGS[difficulty].pointsPerWin} people</strong> today{' '}
                   <Droplets className="inline w-5 h-5 text-[#2E9DF7]" />
                 </p>
+                <div className="bg-[#FFC907]/20 rounded-xl p-4">
+                  <p className="text-sm text-[#333333]/70">Bonus Points</p>
+                  <p className="text-2xl font-bold text-[#333333]">+{DIFFICULTY_CONFIGS[difficulty].pointsPerWin}</p>
+                </div>
                 <div className="space-y-3 pt-4">
                   <button
                     onClick={nextLevel}
                     className="w-full bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold py-4 px-6 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
                   >
-                    Play Again
+                    Next Level
+                  </button>
+                  <button
+                    onClick={onBackToMenu}
+                    className="w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-4 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
+                  >
+                    Change Difficulty
                   </button>
                   <a
                     href="https://www.charitywater.org"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-4 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
+                    className="block w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-3 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
                   >
                     Learn How You Can Help
                   </a>
+                </div>
+              </>
+            ) : gameState === 'timeout' ? (
+              <>
+                <div className="text-6xl">⏰</div>
+                <h2 className="text-3xl font-bold text-[#333333]">
+                  Time's Up!
+                </h2>
+                <p className="text-lg text-[#333333]/80">
+                  The village needs water quickly. Try to work faster next time!
+                </p>
+                <div className="space-y-3 pt-4">
+                  <button
+                    onClick={resetGame}
+                    className="w-full bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold py-4 px-6 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={onBackToMenu}
+                    className="w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-4 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
+                  >
+                    Change Difficulty
+                  </button>
+                </div>
+              </>
+            ) : gameState === 'out-of-moves' ? (
+              <>
+                <div className="text-6xl">🎯</div>
+                <h2 className="text-3xl font-bold text-[#333333]">
+                  No Moves Left!
+                </h2>
+                <p className="text-lg text-[#333333]/80">
+                  You've used all your moves. Plan your path more carefully next time!
+                </p>
+                <div className="space-y-3 pt-4">
+                  <button
+                    onClick={resetGame}
+                    className="w-full bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold py-4 px-6 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={onBackToMenu}
+                    className="w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-4 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
+                  >
+                    Change Difficulty
+                  </button>
                 </div>
               </>
             ) : (
@@ -347,12 +495,20 @@ export function GameBoard() {
                 <p className="text-lg text-[#333333]/80">
                   Remove more dirt blocks to create a path for the water to flow.
                 </p>
-                <button
-                  onClick={resetGame}
-                  className="w-full bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold py-4 px-6 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95 mt-4"
-                >
-                  Try Again
-                </button>
+                <div className="space-y-3 pt-4">
+                  <button
+                    onClick={resetGame}
+                    className="w-full bg-[#FFC907] hover:bg-[#e6b406] text-[#333333] font-bold py-4 px-6 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={onBackToMenu}
+                    className="w-full bg-white hover:bg-gray-50 text-[#333333] font-semibold py-4 px-6 rounded-full transition-all border-2 border-gray-200 active:scale-95"
+                  >
+                    Change Difficulty
+                  </button>
+                </div>
               </>
             )}
           </div>
